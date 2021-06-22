@@ -11,11 +11,11 @@ import pickle
 import cv2
 
 
-RESOLUTION = (1920, 1080)
-FPS = 24
+RESOLUTION = (1280, 720)
+FPS = 20
 
 
-PORT = 8001
+PORT = 8000
 
 FORMAT = 'utf-8'
 SIZE = 12
@@ -116,16 +116,18 @@ def send_picture(frame_path, client_socket, frame_num):
     start_time = time.time()
 
     bytes_io = open(frame_path, 'rb')
-    img_bytes = b''
-    while bytes_io.tell() < sys.getsizeof(bytes_io):
-        img_bytes += bytes_io.read()
+
+    img_bytes = bytes_io.read()
+    bytes_io.close()
+
+
 
     av_read.append(time.time() - start_time)
     start_time = time.time()
 
     # Send Frame Size
     while True:
-        client_socket.send(bytes(f'{"SIZE" + str(len(img_bytes) + 10):<{SIZE+4}}', 'utf-8'))
+        client_socket.send(bytes(f'{"SIZE" + str(len(img_bytes)):<{SIZE+4}}', 'utf-8'))
         status = client_socket.recv(10)
         if status == SUCCESS_MSG:
             av_send_size.append(time.time() - start_time)
@@ -145,6 +147,7 @@ def send_picture(frame_path, client_socket, frame_num):
         elif status == FAILURE_MSG:
             continue
     
+    # Send Frame
     while True:
         client_socket.send(img_bytes)
         
