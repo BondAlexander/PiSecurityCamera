@@ -3,7 +3,7 @@
 import io
 import socket
 import struct
-from cv2 import VideoWriter, VideoWriter_fourcc, cvtColor, COLOR_RGB2BGR, imread
+from cv2 import VideoWriter, VideoWriter_fourcc, cvtColor, COLOR_RGB2BGR, IMREAD_COLOR, imdecode
 import numpy as np
 from PIL import Image, ImageDraw
 import time
@@ -14,8 +14,8 @@ from threading import Thread
 import pickle
 
 
-RESOLUTION = (426, 240)
-FPS = 14
+RESOLUTION = (1920, 1080)
+FPS = 24
 
 PORT = 8001
 SIZE = 10
@@ -49,17 +49,20 @@ def start_instance(conn, addr):
     fourcc = VideoWriter_fourcc(*'mp4v')
     video = VideoWriter(output_file_name, fourcc, FPS, RESOLUTION)
 
-    # Poll for frames
-    frames_written = 0
-    frame = b''
-    all_frames = []
+    
     try:
+        frames_written = 0
+        frame = b''
+        all_frames = []
         new_frame = True
         frame_size = 0
         attempt = 0
         recv_time_array = []
+
+        # Poll for frames
         while True:
             recv_time = time.time()
+
             if new_frame:
                 message = conn.recv(16)
                 try:
@@ -86,8 +89,10 @@ def start_instance(conn, addr):
 
             if len(frame) >= frame_size:
                 conn.send(SUCCESS_MSG)
-                img = pickle.loads(frame)
-                all_frames.append({'frame_num': frame_num, 'frame':img})
+                
+                image = imdecode(np.asarray(bytearray(frame), dtype="uint8"), IMREAD_COLOR)
+
+                all_frames.append({'frame_num': frame_num, 'frame':image})
                 
                 frame = b''
                 new_frame = True
