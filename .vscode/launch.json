@@ -10,6 +10,13 @@
             "request": "launch",
             "program": "VideoServer/VideoServer.py",
             "console": "integratedTerminal"
+        },
+        {
+            "name": "Run Camera",
+            "type": "python",
+            "request": "launch",
+            "program": "SecurityProjectCamera/SecurityCamera.py",
+            "console": "integratedTerminal"
         }
     ]
 }
