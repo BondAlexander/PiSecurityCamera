@@ -15,7 +15,7 @@ RESOLUTION = (1280, 720)
 FPS = 20
 
 
-PORT = 8000
+PORT = 8001
 
 FORMAT = 'utf-8'
 SIZE = 12
@@ -120,7 +120,9 @@ def send_picture(frame_path, client_socket, frame_num):
     img_bytes = bytes_io.read()
     bytes_io.close()
 
-
+    out = open('tmp.jpg', 'wb')
+    out.write(img_bytes)
+    out.close()
 
     av_read.append(time.time() - start_time)
     start_time = time.time()
