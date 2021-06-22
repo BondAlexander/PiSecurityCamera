@@ -14,8 +14,8 @@ from threading import Thread
 import pickle
 
 
-RESOLUTION = (1920, 1080)
-FPS = 24
+RESOLUTION = (1280, 720)
+FPS = 20
 
 PORT = 8001
 SIZE = 10
@@ -62,6 +62,7 @@ def start_instance(conn, addr):
         # Poll for frames
         while True:
             recv_time = time.time()
+            
 
             if new_frame:
                 message = conn.recv(16)
@@ -82,21 +83,25 @@ def start_instance(conn, addr):
                 
                 continue
             else:
-                
-                message = conn.recv(frame_size)
+                try:
+                    message = conn.recv(frame_size)
+                except ValueError:
+                    print =('value error')
+                    conn.send(FAILURE_MSG)
                 frame += message
                 
 
             if len(frame) >= frame_size:
                 conn.send(SUCCESS_MSG)
-                
+                recv_time_array.append(time.time() - recv_time)
+
                 image = imdecode(np.asarray(bytearray(frame), dtype="uint8"), IMREAD_COLOR)
 
                 all_frames.append({'frame_num': frame_num, 'frame':image})
-                
+
+
                 frame = b''
                 new_frame = True
-                recv_time_array.append(time.time() - recv_time)
 
 
     except BrokenPipeError:
