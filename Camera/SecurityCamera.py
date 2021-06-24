@@ -17,8 +17,7 @@ FPS = 20
 PORT = 8001
 
 FORMAT = 'utf-8'
-SIZE = 12
-FRAME_NUM = 12
+PADDING_SIZE = 15
 
 DISCONECT_MESSAGE = 'EXIT'
 SUCCESS_MSG = bytes(f'{"SUCCESS":<10}', 'utf-8')
@@ -54,7 +53,7 @@ def writer():
             output = SplitFrames()
             start = time.time()
             camera.start_recording(output, format='mjpeg')
-            camera.wait_recording(10)
+            camera.wait_recording(60*5)
             camera.stop_recording()
             finish = time.time()
     except KeyboardInterrupt:
@@ -120,24 +119,16 @@ def send_picture(frame_path, client_socket, frame_num):
     av_read.append(time.time() - start_time)
     start_time = time.time()
 
-
-    # Send Frame Size
+    # Create Session Header
+    frame_size = len(img_bytes)
+    session_header = bytes(str(f'SIZE{frame_size:<{PADDING_SIZE-4}}' + f'NUM{frame_num:<{PADDING_SIZE-3}}'), 'utf-8')
+    
+    # Send Session Header
     while True:
-        client_socket.send(bytes(f'{"SIZE" + str(len(img_bytes)):<{SIZE+4}}', 'utf-8'))
+        client_socket.send(session_header)
         status = client_socket.recv(10)
         if status == SUCCESS_MSG:
             av_send_size.append(time.time() - start_time)
-            start_time = time.time()
-            break
-        elif status == FAILURE_MSG:
-            continue
-
-    # Send Frame Number
-    while True:
-        client_socket.send(bytes(f'{"NUM" + str(frame_num):<{FRAME_NUM+3}}', 'utf-8'))
-        status = client_socket.recv(10)
-        if status == SUCCESS_MSG:
-            av_send_num.append(time.time() - start_time)
             start_time = time.time()
             break
         elif status == FAILURE_MSG:
@@ -165,10 +156,11 @@ def send_picture(frame_path, client_socket, frame_num):
 # MAIN
 SERVER_ADDRESS = '10.0.0.198'
 
-if 'tmp' not in listdir():
-    mkdir('tmp')
-elif len(listdir()) > 0:
+if 'tmp' in listdir():
     shutil.rmtree('tmp')
+
+    mkdir('tmp')
+else:
     mkdir('tmp')
 
 
