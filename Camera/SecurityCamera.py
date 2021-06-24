@@ -11,8 +11,8 @@ import pickle
 import cv2
 
 
-RESOLUTION = (426, 240)
-FPS = 14
+RESOLUTION = (1280, 720)
+FPS = 20
 
 
 PORT = 8001
@@ -115,16 +115,21 @@ def reader(server_address,_):
 def send_picture(frame_path, client_socket, frame_num):
     start_time = time.time()
 
-    img_bytes = pickle.dumps(cv2.imread(frame_path))
+    bytes_io = open(frame_path, 'rb')
+
+    img_bytes = bytes_io.read()
+    bytes_io.close()
+
+    out = open('tmp.jpg', 'wb')
+    out.write(img_bytes)
+    out.close()
 
     av_read.append(time.time() - start_time)
     start_time = time.time()
 
-    
-
     # Send Frame Size
     while True:
-        client_socket.send(bytes(f'{"SIZE" + str(len(img_bytes) + 10):<{SIZE+4}}', 'utf-8'))
+        client_socket.send(bytes(f'{"SIZE" + str(len(img_bytes)):<{SIZE+4}}', 'utf-8'))
         status = client_socket.recv(10)
         if status == SUCCESS_MSG:
             av_send_size.append(time.time() - start_time)
@@ -144,6 +149,7 @@ def send_picture(frame_path, client_socket, frame_num):
         elif status == FAILURE_MSG:
             continue
     
+    # Send Frame
     while True:
         client_socket.send(img_bytes)
         
@@ -174,4 +180,3 @@ elif len(listdir()) > 0:
 
 threading.Thread(target=writer).start()
 reader(SERVER_ADDRESS, None)
-
