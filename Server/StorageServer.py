@@ -82,7 +82,7 @@ def start_instance(conn, addr):
                 try:
                     message = conn.recv(frame_size)
                 except ValueError:
-                    print =('value error')
+                    print('value error')
                     conn.send(FAILURE_MSG)
                 frame += message
                 
