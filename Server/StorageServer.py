@@ -16,6 +16,7 @@ FPS = 20
 
 
 PORT = 8001
+LEGAL_PORTS = [8005, 8006, 8007, 8008]
 SIZE = 10
 FRAME_NUM = 10
 DISCONECT_MESSAGE = 'EXIT'
@@ -48,12 +49,9 @@ def start_instance(conn, addr):
     video = VideoWriter(output_file_name, fourcc, FPS, RESOLUTION)
     
     try:
-        frames_written = 0
         frame = b''
         all_frames = []
         new_frame = True
-        frame_size = 0
-        attempt = 0
         recv_time_array = []
 
         # Poll for frames
@@ -61,16 +59,15 @@ def start_instance(conn, addr):
             recv_time = time.time()
 
             if new_frame:
-                message = conn.recv(16)
+                frame_num = 0
+                frame_size = 0
+                message = conn.recv(30)
                 try:
-                    frame_size = int(message[4:SIZE + 4]) - 10
+                    frame_size = int(message[4:15])
                 except ValueError as e:
                     conn.send(FAILURE_MSG)
-                else:
-                    conn.send(SUCCESS_MSG)
-                message = conn.recv(15)
                 try:
-                    frame_num = int(message[3:SIZE + 3])
+                    frame_num = int(message[18:])
                 except ValueError as e:
                     conn.send(FAILURE_MSG)
                 else:
@@ -84,20 +81,31 @@ def start_instance(conn, addr):
                 except ValueError:
                     print('value error')
                     conn.send(FAILURE_MSG)
-                frame += message
+                else:
+                    frame += message
                 
 
-            if len(frame) >= frame_size:
-                conn.send(SUCCESS_MSG)
+
+            if len(frame) > frame_size :
+                conn.send(FAILURE_MSG)
+                frame = b''
+            elif len(frame) == frame_size:
                 recv_time_array.append(time.time() - recv_time)
 
-                image = imdecode(np.asarray(bytearray(frame), dtype="uint8"), IMREAD_COLOR)
+                # TODO REMOVE THIS TRY BLOCK AFTER HASHING
+                try:
+                    image = imdecode(np.asarray(bytearray(frame), dtype="uint8"), IMREAD_COLOR)
+                except Exception as e:
+                    conn.send(FAILURE_MSG)
+                    continue
+                else: 
+                    conn.send(SUCCESS_MSG)
 
-                all_frames.append({'frame_num': frame_num, 'frame':image})
+                    all_frames.append({'frame_num': frame_num, 'frame':image})
 
-
-                frame = b''
-                new_frame = True
+                    frame = b''
+                    new_frame = True
+                
 
 
     except BrokenPipeError:
