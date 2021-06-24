@@ -108,8 +108,6 @@ def reader(server_address,_):
         print(f'\nAverage Send Time: {average_run}')
         print(f'Possible Framerate: {possible_framerate}')
 
-    
-            
             
 def send_picture(frame_path, client_socket, frame_num):
     start_time = time.time()
@@ -118,10 +116,6 @@ def send_picture(frame_path, client_socket, frame_num):
 
     img_bytes = bytes_io.read()
     bytes_io.close()
-
-    out = open('tmp.jpg', 'wb')
-    out.write(img_bytes)
-    out.close()
 
     av_read.append(time.time() - start_time)
     start_time = time.time()
