@@ -14,6 +14,7 @@ import cv2
 RESOLUTION = (1280, 720)
 FPS = 20
 
+
 PORT = 8001
 
 FORMAT = 'utf-8'
@@ -126,7 +127,6 @@ def send_picture(frame_path, client_socket, frame_num):
     av_read.append(time.time() - start_time)
     start_time = time.time()
 
-
     # Send Frame Size
     while True:
         client_socket.send(bytes(f'{"SIZE" + str(len(img_bytes)):<{SIZE+4}}', 'utf-8'))
@@ -148,7 +148,7 @@ def send_picture(frame_path, client_socket, frame_num):
             break
         elif status == FAILURE_MSG:
             continue
-
+    
     # Send Frame
     while True:
         client_socket.send(img_bytes)

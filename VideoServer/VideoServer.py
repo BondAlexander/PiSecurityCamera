@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import io
 import socket
 import struct
@@ -11,9 +13,9 @@ import shutil
 from threading import Thread
 import pickle
 
+
 RESOLUTION = (1280, 720)
 FPS = 20
-
 
 PORT = 8001
 SIZE = 10
@@ -46,6 +48,7 @@ def start_instance(conn, addr):
     # Set up cv2 attributes
     fourcc = VideoWriter_fourcc(*'mp4v')
     video = VideoWriter(output_file_name, fourcc, FPS, RESOLUTION)
+
     
     try:
         frames_written = 0
@@ -59,6 +62,7 @@ def start_instance(conn, addr):
         # Poll for frames
         while True:
             recv_time = time.time()
+            
 
             if new_frame:
                 message = conn.recv(16)
