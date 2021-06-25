@@ -14,7 +14,7 @@ import cv2
 RESOLUTION = (1280, 720)
 FPS = 20
 
-PORT = 8001
+PORT = 8002
 
 FORMAT = 'utf-8'
 PADDING_SIZE = 15
@@ -52,14 +52,15 @@ def writer():
             time.sleep(2)
             output = SplitFrames()
             start = time.time()
+            
             camera.start_recording(output, format='mjpeg')
-            camera.wait_recording(60*5)
+            camera.wait_recording(60**2*24)
             camera.stop_recording()
             finish = time.time()
     except KeyboardInterrupt:
         pass
-    finally:
-        print('Captured %d frames at %.2ffps' % (output.frame_num,output.frame_num / (finish - start)))
+    # finally:
+    #     print('Captured %d frames at %.2ffps' % (output.frame_num,output.frame_num / (finish - start)))
 
 
 def reader(server_address,_):
@@ -92,9 +93,8 @@ def reader(server_address,_):
         sum_num = 0
         sum_frame = 0
         for i in range(len(av_read)):
-            sum_read += av_read[i]
-            sum_size += av_send_size[i]
-            sum_num += av_send_num[i]
+            sum_read += av_read[i-1]
+            sum_size += av_send_size[i-1]
             sum_frame += av_send_img[i-1]
         print('======STATS=======')
         print(f'Average read time: {sum_read/len(av_read)}')
