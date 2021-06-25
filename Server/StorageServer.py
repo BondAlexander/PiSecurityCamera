@@ -87,9 +87,13 @@ def start_instance(conn, addr):
                     conn.send(FAILURE_MSG)
                     continue
                 else: 
+                    all_frames.append({'frame_num': frame_num, 'frame':image})
+                    # TODO make if statement to see if len(all_frames) / FPS == 7
+                    # If true then spin up process to append clip to main footage for day
+                    # Then send success msg
                     conn.send(SUCCESS_MSG)
 
-                    all_frames.append({'frame_num': frame_num, 'frame':image})
+                    
 
                     frame = b''
                     new_frame = True
