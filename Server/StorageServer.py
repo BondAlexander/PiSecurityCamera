@@ -16,21 +16,20 @@ FPS = 20
 PORT = 8001
 LEGAL_PORTS = [8005, 8006, 8007, 8008]
 FORMAT = 'utf-8'
+FOURCC = VideoWriter_fourcc(*'mp4v')
 SUCCESS_MSG = bytes(f'{"SUCCESS":<10}', 'utf-8')
 FAILURE_MSG = bytes(f'{"FAILURE":<10}', 'utf-8')
 
 
 
 def start_instance(conn, addr):
-    # conn.setblocking(False)
     print(f'\t{addr[0]} Connected')
     # Prepare folder to record security footage
     date_formatted = ""
     output_file_path = f'Footage/{addr[0]}/{date_formatted}.mp4'
+    tmp_clip_file_path = f'.tmp/{addr[0]}/clip.mp4'
 
-    # Set up cv2 attributes
-    fourcc = VideoWriter_fourcc(*'mp4v')
-    video = VideoWriter(output_file_path, fourcc, FPS, RESOLUTION)
+    video = VideoWriter(output_file_path, FOURCC, FPS, RESOLUTION)
     
     try:
         frame = b''
@@ -68,8 +67,6 @@ def start_instance(conn, addr):
                 else:
                     frame += message
                 
-
-
             if len(frame) > frame_size :
                 conn.send(FAILURE_MSG)
                 frame = b''
