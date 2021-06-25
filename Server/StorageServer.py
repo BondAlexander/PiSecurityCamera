@@ -13,12 +13,8 @@ from threading import Thread
 RESOLUTION = (1280, 720)
 FPS = 20
 
-
 PORT = 8001
 LEGAL_PORTS = [8005, 8006, 8007, 8008]
-SIZE = 10
-FRAME_NUM = 10
-DISCONECT_MESSAGE = 'EXIT'
 FORMAT = 'utf-8'
 SUCCESS_MSG = bytes(f'{"SUCCESS":<10}', 'utf-8')
 FAILURE_MSG = bytes(f'{"FAILURE":<10}', 'utf-8')
