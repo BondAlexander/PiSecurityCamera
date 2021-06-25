@@ -9,7 +9,6 @@ import os
 import sys
 import shutil
 from threading import Thread
-import pickle
 
 RESOLUTION = (1280, 720)
 FPS = 20
@@ -30,23 +29,12 @@ def start_instance(conn, addr):
     # conn.setblocking(False)
     print(f'\t{addr[0]} Connected')
     # Prepare folder to record security footage
-    if not 'frames' in os.listdir():
-        os.mkdir('frames')
-    else:
-        shutil.rmtree('frames')
-        os.mkdir('frames')
-    version = 0
-    name_approved = False
-    while not name_approved:
-        output_file_name = f'{addr[0]}_v{version}.mp4'
-        if output_file_name in os.listdir():
-            version += 1
-        else:
-            name_approved = True
+    date_formatted = ""
+    output_file_path = f'Footage/{addr[0]}/{date_formatted}.mp4'
 
     # Set up cv2 attributes
     fourcc = VideoWriter_fourcc(*'mp4v')
-    video = VideoWriter(output_file_name, fourcc, FPS, RESOLUTION)
+    video = VideoWriter(output_file_path, fourcc, FPS, RESOLUTION)
     
     try:
         frame = b''
@@ -109,9 +97,9 @@ def start_instance(conn, addr):
 
 
     except BrokenPipeError:
-        print(f'Writing footage to {output_file_name}')
+        print(f'Writing footage to {output_file_path}')
     except ConnectionResetError:
-        print(f'Writing footage to {output_file_name}')
+        print(f'Writing footage to {output_file_path}')
 
     finally:
         sum_t = 0
