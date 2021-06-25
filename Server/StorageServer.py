@@ -1,4 +1,5 @@
 import io
+from posix import listdir
 import socket
 import struct
 from cv2 import VideoWriter, VideoWriter_fourcc, cvtColor, COLOR_RGB2BGR, IMREAD_COLOR, imdecode
@@ -9,44 +10,29 @@ import os
 import sys
 import shutil
 from threading import Thread
-import pickle
 
 RESOLUTION = (1280, 720)
 FPS = 20
 
-
-PORT = 8001
+PORT = 8002
 LEGAL_PORTS = [8005, 8006, 8007, 8008]
-SIZE = 10
-FRAME_NUM = 10
-DISCONECT_MESSAGE = 'EXIT'
 FORMAT = 'utf-8'
+FOURCC = VideoWriter_fourcc(*'mp4v')
 SUCCESS_MSG = bytes(f'{"SUCCESS":<10}', 'utf-8')
 FAILURE_MSG = bytes(f'{"FAILURE":<10}', 'utf-8')
 
 
 
 def start_instance(conn, addr):
-    # conn.setblocking(False)
     print(f'\t{addr[0]} Connected')
     # Prepare folder to record security footage
-    if not 'frames' in os.listdir():
-        os.mkdir('frames')
-    else:
-        shutil.rmtree('frames')
-        os.mkdir('frames')
-    version = 0
-    name_approved = False
-    while not name_approved:
-        output_file_name = f'{addr[0]}_v{version}.mp4'
-        if output_file_name in os.listdir():
-            version += 1
-        else:
-            name_approved = True
+    if not os.path.exists(f'.tmp/{addr[0]}'):
+        os.mkdir(f'.tmp/{addr[0]}')
+    date_formatted = "6.24.2021"
+    output_file_path = f'Footage/{addr[0]}/{date_formatted}.mp4'
+    tmp_clip_file_path = f'.tmp/{addr[0]}/clip.mp4'
 
-    # Set up cv2 attributes
-    fourcc = VideoWriter_fourcc(*'mp4v')
-    video = VideoWriter(output_file_name, fourcc, FPS, RESOLUTION)
+    video = VideoWriter(tmp_clip_file_path, FOURCC, FPS, RESOLUTION)
     
     try:
         frame = b''
@@ -64,8 +50,12 @@ def start_instance(conn, addr):
                 message = conn.recv(30)
                 try:
                     frame_size = int(message[4:15])
+                    if frame_size == 0:
+                        conn.send(FAILURE_MSG)
+                        continue
                 except ValueError as e:
                     conn.send(FAILURE_MSG)
+                    continue
                 try:
                     frame_num = int(message[18:])
                 except ValueError as e:
@@ -84,8 +74,6 @@ def start_instance(conn, addr):
                 else:
                     frame += message
                 
-
-
             if len(frame) > frame_size :
                 conn.send(FAILURE_MSG)
                 frame = b''
@@ -109,9 +97,9 @@ def start_instance(conn, addr):
 
 
     except BrokenPipeError:
-        print(f'Writing footage to {output_file_name}')
+        print(f'Writing footage to {tmp_clip_file_path}')
     except ConnectionResetError:
-        print(f'Writing footage to {output_file_name}')
+        print(f'Writing footage to {tmp_clip_file_path}')
 
     finally:
         sum_t = 0
