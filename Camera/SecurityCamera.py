@@ -10,9 +10,8 @@ import threading
 import pickle
 import cv2
 
-# RESOLUTION = (426, 240)
-RESOLUTION = (1280, 720)
 
+RESOLUTION = (1280, 720)
 FPS = 20
 
 PORT = 8001
@@ -80,10 +79,10 @@ def reader(server_address,_):
     try:
         while True:
             # Wait for frames
-            while len(listdir('tmp')) < 1:
+            while len(listdir('tmp')) == 0:
                 pass
-            frame_paths = sorted(listdir('tmp'))
-            for frame in frame_paths:
+
+            for frame in listdir('tmp'):
                 send_picture(f'tmp/{frame}', client_socket, frame.split('image')[-1].split('.')[0])
                 remove(f'tmp/{frame}')
     except KeyboardInterrupt:
@@ -93,18 +92,17 @@ def reader(server_address,_):
         sum_size = 0
         sum_num = 0
         sum_frame = 0
-        for i in av_read:
-            sum_read += i
-        for i in av_send_size:
-            sum_size += i
-        for i in av_send_img:
-            sum_frame += i
+        for i in range(len(av_read)):
+            sum_read += av_read[i-1]
+            sum_size += av_send_size[i-1]
+            sum_frame += av_send_img[i-1]
         print('======STATS=======')
         print(f'Average read time: {sum_read/len(av_read)}')
         print(f'Average size time: {sum_size/len(av_send_size)}')
+        print(f'Average num time: {sum_num/len(av_send_num)}')
         print(f'Average frame time: {sum_frame/len(av_send_img)}')
 
-        average_run = (sum_read/len(av_read) + sum_size/len(av_send_size) + sum_frame/len(av_send_img)) 
+        average_run = (sum_read/len(av_read) + sum_size/len(av_send_size) + sum_num/len(av_send_num) + sum_frame/len(av_send_img)) 
         possible_framerate = 1 / average_run
         print(f'\nAverage Send Time: {average_run}')
         print(f'Possible Framerate: {possible_framerate}')
@@ -126,7 +124,7 @@ def send_picture(frame_path, client_socket, frame_num):
     session_header = bytes(str(f'SIZE{frame_size:<{PADDING_SIZE-4}}' + f'NUM{frame_num:<{PADDING_SIZE-3}}'), 'utf-8')
     
     # Send Session Header
-    attempt_num = 0
+    attempt = 0
     while True:
         client_socket.send(session_header)
         status = client_socket.recv(10)
@@ -134,11 +132,11 @@ def send_picture(frame_path, client_socket, frame_num):
             av_send_size.append(time.time() - start_time)
             start_time = time.time()
             break
-        elif attempt_num > 3:
-            print(f'dropped frame {frame_num}')
-            return 
+        elif attempt > 3:
+            print('Dropping frame')
+            return
         elif status == FAILURE_MSG:
-            attempt_num += 1
+            attempt += 1
             continue
 
     # Send Frame
