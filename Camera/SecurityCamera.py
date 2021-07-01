@@ -14,7 +14,7 @@ import cv2
 RESOLUTION = (1280, 720)
 FPS = 20
 
-PORT = 8002
+PORT = 8001
 
 FORMAT = 'utf-8'
 PADDING_SIZE = 15
@@ -124,6 +124,7 @@ def send_picture(frame_path, client_socket, frame_num):
     session_header = bytes(str(f'SIZE{frame_size:<{PADDING_SIZE-4}}' + f'NUM{frame_num:<{PADDING_SIZE-3}}'), 'utf-8')
     
     # Send Session Header
+    attempt = 0
     while True:
         client_socket.send(session_header)
         status = client_socket.recv(10)
@@ -131,7 +132,11 @@ def send_picture(frame_path, client_socket, frame_num):
             av_send_size.append(time.time() - start_time)
             start_time = time.time()
             break
+        elif attempt > 3:
+            print('Dropping frame')
+            return
         elif status == FAILURE_MSG:
+            attempt += 1
             continue
 
     # Send Frame
