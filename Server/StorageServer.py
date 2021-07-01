@@ -26,7 +26,7 @@ def merge_clip(ip_addr):
     date_formatted = "6.24.2021"
     version = 0
     output_file_path = f'Footage/{ip_addr}/{date_formatted}_v{version}.mkv'
-    tmp_clip_file_path = f'.tmp/{ip_addr}/clip.mp4'
+    tmp_clip_file_path = f'.tmp/{ip_addr}/clip.mp4.tmp'
     if os.path.exists(output_file_path):
         os.system(f'mkvmerge -o .tmp/{output_file_path} {output_file_path} \+ {tmp_clip_file_path}')
         os.remove(output_file_path)
@@ -43,6 +43,8 @@ def start_instance(conn, addr):
             os.mkdir('.tmp')
         os.mkdir(f'.tmp/{addr[0]}')
     if not os.path.exists(f'Footage/{addr[0]}'):
+        if not os.path.exists('Footage'):
+            os.mkdir('Footage')
         os.mkdir(f'Footage/{addr[0]}')
     date_formatted = "6.24.2021"
     output_file_path = f'Footage/{addr[0]}/{date_formatted}.mp4'
@@ -105,9 +107,9 @@ def start_instance(conn, addr):
                             video.write(frame['frame'])
                         video.release()
                         
-                        merge_clip(addr[0])
-                        # shutil.copy(f'{tmp_clip_file_path}', f'{tmp_clip_file_path}')
-                        # Thread(target=merge_clip, args=(addr[0],))
+                        # merge_clip(addr[0])
+                        shutil.copy(f'{tmp_clip_file_path}', f'{tmp_clip_file_path}.tmp')
+                        Thread(target=merge_clip, args=(addr[0],)).start()
                         all_frames = []
                         video = VideoWriter(tmp_clip_file_path, FOURCC, FPS, RESOLUTION)
                     conn.send(SUCCESS_MSG)
