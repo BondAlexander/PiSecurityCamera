@@ -26,11 +26,11 @@ def merge_clip(ip_addr):
     date_formatted = "6.24.2021"
     version = 0
     output_file_path = f'Footage/{ip_addr}/{date_formatted}_v{version}.mkv'
-    tmp_clip_file_path = f'.tmp/{ip_addr}/clip.mp4.tmp'
+    tmp_clip_file_path = f'.tmp/{ip_addr}/clip.mp4'
     if os.path.exists(output_file_path):
-        os.system(f'mkvmerge -o {output_file_path}.tmp {output_file_path} \+ {tmp_clip_file_path}')
+        os.system(f'mkvmerge -o .tmp/{output_file_path} {output_file_path} \+ {tmp_clip_file_path}')
         os.remove(output_file_path)
-        shutil.copy(f'{output_file_path}.tmp', output_file_path)
+        shutil.copy(f'.tmp/{output_file_path}', output_file_path)
         os.remove(tmp_clip_file_path)
     else:
         shutil.copy(tmp_clip_file_path, output_file_path)
@@ -39,6 +39,8 @@ def start_instance(conn, addr):
     print(f'\t{addr[0]} Connected')
     # Prepare folder to record security footage
     if not os.path.exists(f'.tmp/{addr[0]}'):
+        if not os.path.exists('.tmp'):
+            os.mkdir('.tmp')
         os.mkdir(f'.tmp/{addr[0]}')
     if not os.path.exists(f'Footage/{addr[0]}'):
         os.mkdir(f'Footage/{addr[0]}')
@@ -95,16 +97,17 @@ def start_instance(conn, addr):
                 else: 
                     all_frames.append({'frame_num': frame_num, 'frame':image})
 
-                    if len(all_frames) / FPS == 10:
+                    if len(all_frames) / FPS == 5:
                         def sort_frames(i):
                             return int(i['frame_num'])
                         all_frames.sort(key=sort_frames)
                         for frame in all_frames:
                             video.write(frame['frame'])
                         video.release()
-                        shutil.copy(f'{tmp_clip_file_path}', f'{tmp_clip_file_path}.tmp')
-                        # merge_clip(addr[0])
-                        Thread(target=merge_clip, args=(addr[0],))
+                        
+                        merge_clip(addr[0])
+                        # shutil.copy(f'{tmp_clip_file_path}', f'{tmp_clip_file_path}')
+                        # Thread(target=merge_clip, args=(addr[0],))
                         all_frames = []
                         video = VideoWriter(tmp_clip_file_path, FOURCC, FPS, RESOLUTION)
                     conn.send(SUCCESS_MSG)
