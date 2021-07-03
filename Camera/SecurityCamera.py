@@ -54,7 +54,10 @@ def writer():
         camera.annotate_background = picamera.Color('black')
         camera.annotate_text = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         camera.start_recording(output, format='mjpeg')
-        camera.wait_recording(60**2*24)
+        start = datetime.datetime.now()
+        while (datetime.datetime.now() - start).seconds < 60**2*24:
+            camera.annotate_text = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            camera.wait_recording(0.2)
         camera.stop_recording()
 
 
