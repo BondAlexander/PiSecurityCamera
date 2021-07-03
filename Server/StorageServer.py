@@ -11,7 +11,9 @@ import ffmpeg
 
 
 # RESOLUTION = (426, 240)
-RESOLUTION = (1280, 720)
+# RESOLUTION = (1280, 720)
+RESOLUTION = (1920, 1080)
+
 FPS = 20
 
 PORT = 8001
@@ -22,13 +24,13 @@ SUCCESS_MSG = bytes(f'{"SUCCESS":<10}', 'utf-8')
 FAILURE_MSG = bytes(f'{"FAILURE":<10}', 'utf-8')
 
 
-def merge_clip(ip_addr):
+def merge_clip(ip_addr, tmp_clip_file_path):
     date_formatted = "6.24.2021"
     version = 0
     output_file_path = f'Footage/{ip_addr}/{date_formatted}_v{version}.mkv'
-    tmp_clip_file_path = f'.tmp/{ip_addr}/clip.mp4.tmp'
     if os.path.exists(output_file_path):
         os.system(f'mkvmerge -o .tmp/{output_file_path} {output_file_path} \+ {tmp_clip_file_path}')
+        print()
         os.remove(output_file_path)
         shutil.copy(f'.tmp/{output_file_path}', output_file_path)
         os.remove(tmp_clip_file_path)
@@ -49,7 +51,6 @@ def start_instance(conn, addr):
     date_formatted = "6.24.2021"
     output_file_path = f'Footage/{addr[0]}/{date_formatted}.mp4'
     tmp_clip_file_path = f'.tmp/{addr[0]}/clip.mp4'
-
     video = VideoWriter(tmp_clip_file_path, FOURCC, FPS, RESOLUTION)
     
     frame = b''
@@ -99,17 +100,23 @@ def start_instance(conn, addr):
                 else: 
                     all_frames.append({'frame_num': frame_num, 'frame':image})
 
-                    if len(all_frames) / FPS == 5:
+                    if len(all_frames) / FPS == 7:
                         def sort_frames(i):
                             return int(i['frame_num'])
                         all_frames.sort(key=sort_frames)
                         for frame in all_frames:
                             video.write(frame['frame'])
                         video.release()
+                        version = 0
+                        while True:
+                            if os.path.exists(f'.tmp/{addr[0]}/clip_to_add_{version}.mp4'):
+                                version += 1
+                            else:
+                                clip_to_add = f'.tmp/{addr[0]}/clip_to_add_{version}.mp4'
+                                break
                         
-                        # merge_clip(addr[0])
-                        shutil.copy(f'{tmp_clip_file_path}', f'{tmp_clip_file_path}.tmp')
-                        Thread(target=merge_clip, args=(addr[0],)).start()
+                        shutil.copy(tmp_clip_file_path, clip_to_add)
+                        Thread(target=merge_clip, args=(addr[0], clip_to_add)).start()
                         all_frames = []
                         video = VideoWriter(tmp_clip_file_path, FOURCC, FPS, RESOLUTION)
                     conn.send(SUCCESS_MSG)
