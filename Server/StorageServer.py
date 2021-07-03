@@ -17,7 +17,7 @@ RESOLUTION = (1280, 720)
 
 FPS = 20
 
-PORT = 8001
+PORT = 8000
 LEGAL_PORTS = [8005, 8006, 8007, 8008]
 FORMAT = 'utf-8'
 FOURCC = VideoWriter_fourcc(*'mp4v')
@@ -39,7 +39,7 @@ def merge_clip(ip_addr, tmp_clip_file_path):
         shutil.copy(tmp_clip_file_path, output_file_path)
 
 
-def start_instance(conn, addr):
+def start_instance(TLS_server_socket, addr):
     print(f'\t{addr[0]} Connected')
     # Prepare folder to record security footage
     if not os.path.exists(f'.tmp/{addr[0]}'):
@@ -64,30 +64,30 @@ def start_instance(conn, addr):
         while True:
             if new_frame:
                 recv_time = time.time()
-                message = conn.recv(30)
+                message = TLS_server_socket.recv(30)
                 try:
                     frame_size = int(message[4:15])
                     if frame_size == 0:
-                        conn.send(FAILURE_MSG)
+                        TLS_server_socket.send(FAILURE_MSG)
                         continue
                 except ValueError as e:
-                    conn.send(FAILURE_MSG)
+                    TLS_server_socket.send(FAILURE_MSG)
                     continue
                 try:
                     frame_num = int(message[18:])
                 except ValueError as e:
-                    conn.send(FAILURE_MSG)
+                    TLS_server_socket.send(FAILURE_MSG)
                 else:
                     new_frame = False
-                    conn.send(SUCCESS_MSG)
+                    TLS_server_socket.send(SUCCESS_MSG)
                 continue
             else:
 
-                message = conn.recv(frame_size)
+                message = TLS_server_socket.recv(frame_size)
                 frame += message
             
             if len(frame) > frame_size :
-                conn.send(FAILURE_MSG)
+                TLS_server_socket.send(FAILURE_MSG)
                 frame = b''
             elif len(frame) == frame_size:
 
@@ -95,7 +95,7 @@ def start_instance(conn, addr):
                 try:
                     image = imdecode(np.asarray(bytearray(frame), dtype="uint8"), IMREAD_COLOR)
                 except Exception as e:
-                    conn.send(FAILURE_MSG)
+                    TLS_server_socket.send(FAILURE_MSG)
                     continue
                 else: 
                     all_frames.append({'frame_num': frame_num, 'frame':image})
@@ -119,7 +119,7 @@ def start_instance(conn, addr):
                         Thread(target=merge_clip, args=(addr[0], clip_to_add)).start()
                         all_frames = []
                         video = VideoWriter(tmp_clip_file_path, FOURCC, FPS, RESOLUTION)
-                    conn.send(SUCCESS_MSG)
+                    TLS_server_socket.send(SUCCESS_MSG)
 
                     frame = b''
                     new_frame = True
@@ -145,16 +145,16 @@ def main():
     )
     # Set up socket server
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    with context.wrap_socket(server_socket) as TLS_server_socket:
 
-        TLS_server_socket.bind(("0.0.0.0", PORT))
-        TLS_server_socket.listen(0)
+    server_socket.bind(("0.0.0.0", PORT))
+    server_socket.listen(0)
 
-        # Poll for joining security cameras
-        serving = True
-        while serving:
-            conn, addr = TLS_server_socket.accept()
-            Thread(target=start_instance, args=(TLS_server_socket, addr)).start()
+    # Poll for joining security cameras
+    serving = True
+    while serving:
+        conn, addr = server_socket.accept()
+        TLS_server_socket = context.wrap_socket(conn, server_side=True)
+        Thread(target=start_instance, args=(TLS_server_socket, addr)).start()
         
 if __name__ == '__main__':
     main()
