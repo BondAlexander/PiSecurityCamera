@@ -7,15 +7,14 @@ from time import sleep
 import socket
 import sys
 import threading
-import pickle
-import cv2
+import ssl
 
 
-# RESOLUTION = (1280, 720)
-RESOLUTION = (1920, 1080)
+RESOLUTION = (1280, 720)
+# RESOLUTION = (1920, 1080)
 FPS = 20
 
-PORT = 8001
+PORT = 8000
 
 FORMAT = 'utf-8'
 PADDING_SIZE = 15
@@ -45,35 +44,36 @@ def writer():
                 self.frame_num += 1
                 self.output = io.open('tmp/image%02d.jpg' % self.frame_num, 'wb')
             self.output.write(buf)
-    
-    try:
-        with picamera.PiCamera(resolution=RESOLUTION, framerate=FPS) as camera:
-            camera.start_preview()
-            # Give the camera some warm-up time
-            time.sleep(2)
-            output = SplitFrames()
-            start = time.time()
-            
-            camera.start_recording(output, format='mjpeg')
-            camera.wait_recording(60**2*24)
-            camera.stop_recording()
-            finish = time.time()
-    except KeyboardInterrupt:
-        pass
-    # finally:
-    #     print('Captured %d frames at %.2ffps' % (output.frame_num,output.frame_num / (finish - start)))
+
+    with picamera.PiCamera(resolution=RESOLUTION, framerate=FPS) as camera:
+        camera.start_preview()
+        # Give the camera some warm-up time
+        time.sleep(2)
+        output = SplitFrames()
+        
+        camera.start_recording(output, format='mjpeg')
+        camera.wait_recording(60**2*24)
+        camera.stop_recording()
 
 
 def reader(server_address,_):
-    
+    CERT_FILE = path.join(path.dirname(__file__), 'keycert.pem')
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS)
+    context.load_cert_chain(CERT_FILE)
+    context.options |= (
+        ssl.OP_NO_TLSv1 | ssl.OP_NO_TLSv1_1 | ssl.OP_NO_TLSv1_2
+    )
     # Connect to server
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    TLS_client_socket = context.wrap_socket(client_socket)
     while True:
-        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            client_socket.connect((server_address, PORT))
+            TLS_client_socket.connect((server_address, PORT))
         except ConnectionRefusedError:
             sys.stdout.flush()
             sys.stdout.write('\t[Reader]Trying to connect to server...\r')
+            client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            TLS_client_socket = context.wrap_socket(client_socket)
         else:
             print('\t[Reader]Connected To Server                 ')
             break
@@ -85,14 +85,13 @@ def reader(server_address,_):
             
             frame_paths = sorted(listdir('tmp'))
             for frame in frame_paths:
-                send_picture(f'tmp/{frame}', client_socket, frame.split('image')[-1].split('.')[0])
+                send_picture(f'tmp/{frame}', TLS_client_socket, frame.split('image')[-1].split('.')[0])
                 remove(f'tmp/{frame}')
     except KeyboardInterrupt:
         print()
     finally:
         sum_read = 0
         sum_size = 0
-        sum_num = 0
         sum_frame = 0
         for i in av_read:
             sum_read += i
@@ -155,13 +154,13 @@ def send_picture(frame_path, client_socket, frame_num):
             continue
     
     av_send_img.append(time.time() - start_time)
-    print(f'[Reader] Sent frame {int(frame_num)}({len(img_bytes)} bytes)')
     
 
-
-
-
 # MAIN
+if not ssl.HAS_TLSv1_3:
+    print('This machine does not support TLS 1.3. Please update OpenSSL')
+    exit(0)
+
 SERVER_ADDRESS = '10.0.0.198'
 
 if 'tmp' in listdir():

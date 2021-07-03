@@ -2,3 +2,6 @@ launch.json
 settings.json
 *.mp4
 *.jpg
+Server/Footage/*
+Server/.tmp*
+*.pem
