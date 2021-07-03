@@ -11,7 +11,8 @@ import pickle
 import cv2
 
 
-RESOLUTION = (1280, 720)
+# RESOLUTION = (1280, 720)
+RESOLUTION = (1920, 1080)
 FPS = 20
 
 PORT = 8001
@@ -93,17 +94,18 @@ def reader(server_address,_):
         sum_size = 0
         sum_num = 0
         sum_frame = 0
-        for i in range(len(av_read)):
-            sum_read += av_read[i-1]
-            sum_size += av_send_size[i-1]
-            sum_frame += av_send_img[i-1]
+        for i in av_read:
+            sum_read += i
+        for i in av_send_size:
+            sum_size += i
+        for i in av_send_img:
+            sum_frame += i
         print('======STATS=======')
         print(f'Average read time: {sum_read/len(av_read)}')
         print(f'Average size time: {sum_size/len(av_send_size)}')
-        print(f'Average num time: {sum_num/len(av_send_num)}')
         print(f'Average frame time: {sum_frame/len(av_send_img)}')
 
-        average_run = (sum_read/len(av_read) + sum_size/len(av_send_size) + sum_num/len(av_send_num) + sum_frame/len(av_send_img)) 
+        average_run = (sum_read/len(av_read) + sum_size/len(av_send_size) + sum_frame/len(av_send_img)) 
         possible_framerate = 1 / average_run
         print(f'\nAverage Send Time: {average_run}')
         print(f'Possible Framerate: {possible_framerate}')
