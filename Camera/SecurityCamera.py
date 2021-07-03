@@ -81,8 +81,9 @@ def reader(server_address,_):
             # Wait for frames
             while len(listdir('tmp')) == 0:
                 pass
-
-            for frame in listdir('tmp'):
+            
+            frame_paths = sorted(listdir('tmp'))
+            for frame in frame_paths:
                 send_picture(f'tmp/{frame}', client_socket, frame.split('image')[-1].split('.')[0])
                 remove(f'tmp/{frame}')
     except KeyboardInterrupt:
