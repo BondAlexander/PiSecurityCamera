@@ -52,14 +52,15 @@ def writer():
             time.sleep(2)
             output = SplitFrames()
             start = time.time()
+            
             camera.start_recording(output, format='mjpeg')
-            camera.wait_recording(60*5)
+            camera.wait_recording(60**2*24)
             camera.stop_recording()
             finish = time.time()
     except KeyboardInterrupt:
         pass
-    finally:
-        print('Captured %d frames at %.2ffps' % (output.frame_num,output.frame_num / (finish - start)))
+    # finally:
+    #     print('Captured %d frames at %.2ffps' % (output.frame_num,output.frame_num / (finish - start)))
 
 
 def reader(server_address,_):
@@ -80,8 +81,9 @@ def reader(server_address,_):
             # Wait for frames
             while len(listdir('tmp')) == 0:
                 pass
-
-            for frame in listdir('tmp'):
+            
+            frame_paths = sorted(listdir('tmp'))
+            for frame in frame_paths:
                 send_picture(f'tmp/{frame}', client_socket, frame.split('image')[-1].split('.')[0])
                 remove(f'tmp/{frame}')
     except KeyboardInterrupt:
@@ -92,9 +94,8 @@ def reader(server_address,_):
         sum_num = 0
         sum_frame = 0
         for i in range(len(av_read)):
-            sum_read += av_read[i]
-            sum_size += av_send_size[i]
-            sum_num += av_send_num[i]
+            sum_read += av_read[i-1]
+            sum_size += av_send_size[i-1]
             sum_frame += av_send_img[i-1]
         print('======STATS=======')
         print(f'Average read time: {sum_read/len(av_read)}')
@@ -124,6 +125,7 @@ def send_picture(frame_path, client_socket, frame_num):
     session_header = bytes(str(f'SIZE{frame_size:<{PADDING_SIZE-4}}' + f'NUM{frame_num:<{PADDING_SIZE-3}}'), 'utf-8')
     
     # Send Session Header
+    attempt = 0
     while True:
         client_socket.send(session_header)
         status = client_socket.recv(10)
@@ -131,7 +133,11 @@ def send_picture(frame_path, client_socket, frame_num):
             av_send_size.append(time.time() - start_time)
             start_time = time.time()
             break
+        elif attempt > 3:
+            print('Dropping frame')
+            return
         elif status == FAILURE_MSG:
+            attempt += 1
             continue
 
     # Send Frame

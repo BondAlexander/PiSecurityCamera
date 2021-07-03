@@ -1,71 +1,78 @@
 import io
+from posix import listdir
 import socket
-import struct
 from cv2 import VideoWriter, VideoWriter_fourcc, cvtColor, COLOR_RGB2BGR, IMREAD_COLOR, imdecode
 import numpy as np
-from PIL import Image, ImageDraw
+import shutil
 import time
 import os
-import sys
-import shutil
 from threading import Thread
-import pickle
+import ffmpeg
 
-RESOLUTION = (1280, 720)
+
+# RESOLUTION = (426, 240)
+# RESOLUTION = (1280, 720)
+RESOLUTION = (1920, 1080)
+
 FPS = 20
-
 
 PORT = 8001
 LEGAL_PORTS = [8005, 8006, 8007, 8008]
-SIZE = 10
-FRAME_NUM = 10
-DISCONECT_MESSAGE = 'EXIT'
 FORMAT = 'utf-8'
+FOURCC = VideoWriter_fourcc(*'mp4v')
 SUCCESS_MSG = bytes(f'{"SUCCESS":<10}', 'utf-8')
 FAILURE_MSG = bytes(f'{"FAILURE":<10}', 'utf-8')
 
 
+def merge_clip(ip_addr, tmp_clip_file_path):
+    date_formatted = "6.24.2021"
+    version = 0
+    output_file_path = f'Footage/{ip_addr}/{date_formatted}_v{version}.mkv'
+    if os.path.exists(output_file_path):
+        os.system(f'mkvmerge -o .tmp/{output_file_path} {output_file_path} \+ {tmp_clip_file_path}')
+        print()
+        os.remove(output_file_path)
+        shutil.copy(f'.tmp/{output_file_path}', output_file_path)
+        os.remove(tmp_clip_file_path)
+    else:
+        shutil.copy(tmp_clip_file_path, output_file_path)
 
 def start_instance(conn, addr):
-    # conn.setblocking(False)
     print(f'\t{addr[0]} Connected')
     # Prepare folder to record security footage
-    if not 'frames' in os.listdir():
-        os.mkdir('frames')
-    else:
-        shutil.rmtree('frames')
-        os.mkdir('frames')
-    version = 0
-    name_approved = False
-    while not name_approved:
-        output_file_name = f'{addr[0]}_v{version}.mp4'
-        if output_file_name in os.listdir():
-            version += 1
-        else:
-            name_approved = True
-
-    # Set up cv2 attributes
-    fourcc = VideoWriter_fourcc(*'mp4v')
-    video = VideoWriter(output_file_name, fourcc, FPS, RESOLUTION)
+    if not os.path.exists(f'.tmp/{addr[0]}'):
+        if not os.path.exists('.tmp'):
+            os.mkdir('.tmp')
+        os.mkdir(f'.tmp/{addr[0]}')
+    if not os.path.exists(f'Footage/{addr[0]}'):
+        if not os.path.exists('Footage'):
+            os.mkdir('Footage')
+        os.mkdir(f'Footage/{addr[0]}')
+    date_formatted = "6.24.2021"
+    output_file_path = f'Footage/{addr[0]}/{date_formatted}.mp4'
+    tmp_clip_file_path = f'.tmp/{addr[0]}/clip.mp4'
+    video = VideoWriter(tmp_clip_file_path, FOURCC, FPS, RESOLUTION)
     
+    frame = b''
+    all_frames = []
+    new_frame = True
+    recv_time_array = []
     try:
-        frame = b''
-        all_frames = []
-        new_frame = True
-        recv_time_array = []
-
         # Poll for frames
         while True:
-            recv_time = time.time()
+            
 
             if new_frame:
-                frame_num = 0
-                frame_size = 0
+                recv_time = time.time()
                 message = conn.recv(30)
                 try:
                     frame_size = int(message[4:15])
+                    if frame_size == 0:
+                        conn.send(FAILURE_MSG)
+                        continue
                 except ValueError as e:
                     conn.send(FAILURE_MSG)
+                    continue
                 try:
                     frame_num = int(message[18:])
                 except ValueError as e:
@@ -73,24 +80,16 @@ def start_instance(conn, addr):
                 else:
                     new_frame = False
                     conn.send(SUCCESS_MSG)
-                
                 continue
             else:
-                try:
-                    message = conn.recv(frame_size)
-                except ValueError:
-                    print('value error')
-                    conn.send(FAILURE_MSG)
-                else:
-                    frame += message
-                
 
-
+                message = conn.recv(frame_size)
+                frame += message
+            
             if len(frame) > frame_size :
                 conn.send(FAILURE_MSG)
                 frame = b''
             elif len(frame) == frame_size:
-                recv_time_array.append(time.time() - recv_time)
 
                 # TODO REMOVE THIS TRY BLOCK AFTER HASHING
                 try:
@@ -99,32 +98,39 @@ def start_instance(conn, addr):
                     conn.send(FAILURE_MSG)
                     continue
                 else: 
-                    conn.send(SUCCESS_MSG)
-
                     all_frames.append({'frame_num': frame_num, 'frame':image})
+
+                    if len(all_frames) / FPS == 7:
+                        def sort_frames(i):
+                            return int(i['frame_num'])
+                        all_frames.sort(key=sort_frames)
+                        for frame in all_frames:
+                            video.write(frame['frame'])
+                        video.release()
+                        version = 0
+                        while True:
+                            if os.path.exists(f'.tmp/{addr[0]}/clip_to_add_{version}.mp4'):
+                                version += 1
+                            else:
+                                clip_to_add = f'.tmp/{addr[0]}/clip_to_add_{version}.mp4'
+                                break
+                        
+                        shutil.copy(tmp_clip_file_path, clip_to_add)
+                        Thread(target=merge_clip, args=(addr[0], clip_to_add)).start()
+                        all_frames = []
+                        video = VideoWriter(tmp_clip_file_path, FOURCC, FPS, RESOLUTION)
+                    conn.send(SUCCESS_MSG)
 
                     frame = b''
                     new_frame = True
-                
-
-
-    except BrokenPipeError:
-        print(f'Writing footage to {output_file_name}')
-    except ConnectionResetError:
-        print(f'Writing footage to {output_file_name}')
-
+                    recv_time_array.append(time.time() - recv_time)
     finally:
-        sum_t = 0
+        sum_time = 0.0
         for t in recv_time_array:
-            sum_t += t
-        print(f'Average time: {sum_t/len(recv_time_array)}')
-        def sort_frames(i):
-            return int(i['frame_num'])
-        all_frames.sort(key=sort_frames)
-        for frame in all_frames:
-            video.write(frame['frame'])
-        video.release()
+            sum_time += t
+        print(f'Average time per frame: {sum_time/len(recv_time_array)}')
 
+            
 
 def main():
     
