@@ -8,6 +8,7 @@ import socket
 import sys
 import threading
 import ssl
+import datetime
 
 
 RESOLUTION = (1280, 720)
@@ -50,7 +51,8 @@ def writer():
         # Give the camera some warm-up time
         time.sleep(2)
         output = SplitFrames()
-        
+        camera.annotate_background = picamera.Color('black')
+        camera.annotate_text = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         camera.start_recording(output, format='mjpeg')
         camera.wait_recording(60**2*24)
         camera.stop_recording()
