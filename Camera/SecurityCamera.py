@@ -11,8 +11,8 @@ import pickle
 import cv2
 
 
-# RESOLUTION = (1280, 720)
-RESOLUTION = (1920, 1080)
+RESOLUTION = (1280, 720)
+# RESOLUTION = (1920, 1080)
 FPS = 20
 
 PORT = 8001
@@ -155,7 +155,6 @@ def send_picture(frame_path, client_socket, frame_num):
             continue
     
     av_send_img.append(time.time() - start_time)
-    print(f'[Reader] Sent frame {int(frame_num)}({len(img_bytes)} bytes)')
     
 
 
