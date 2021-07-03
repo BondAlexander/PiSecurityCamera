@@ -8,11 +8,12 @@ import time
 import os
 from threading import Thread
 import ffmpeg
+import ssl
 
 
 # RESOLUTION = (426, 240)
-# RESOLUTION = (1280, 720)
-RESOLUTION = (1920, 1080)
+RESOLUTION = (1280, 720)
+# RESOLUTION = (1920, 1080)
 
 FPS = 20
 
@@ -37,6 +38,7 @@ def merge_clip(ip_addr, tmp_clip_file_path):
     else:
         shutil.copy(tmp_clip_file_path, output_file_path)
 
+
 def start_instance(conn, addr):
     print(f'\t{addr[0]} Connected')
     # Prepare folder to record security footage
@@ -60,8 +62,6 @@ def start_instance(conn, addr):
     try:
         # Poll for frames
         while True:
-            
-
             if new_frame:
                 recv_time = time.time()
                 message = conn.recv(30)
@@ -133,17 +133,28 @@ def start_instance(conn, addr):
             
 
 def main():
-    
+    # TLS code borrowed from https://www.agnosticdev.com/blog-entry/python-network-security-networking/ssl-and-tls-updates-python-37
+    if not ssl.HAS_TLSv1_3:
+        print('This machine does not support TLS 1.3. Please update OpenSSL')
+        exit(0)
+    CERT_FILE = os.path.join(os.path.dirname(__file__), 'keycert.pem')
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS)
+    context.load_cert_chain(CERT_FILE)
+    context.options |= (
+        ssl.OP_NO_TLSv1 | ssl.OP_NO_TLSv1_1 | ssl.OP_NO_TLSv1_2
+    )
     # Set up socket server
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind(("0.0.0.0", PORT))
-    server_socket.listen(0)
+    with context.wrap_socket(server_socket) as TLS_server_socket:
 
-    # Poll for joining security cameras
-    serving = True
-    while serving:
-        conn, addr = server_socket.accept()
-        Thread(target=start_instance, args=(conn, addr)).start()
+        TLS_server_socket.bind(("0.0.0.0", PORT))
+        TLS_server_socket.listen(0)
+
+        # Poll for joining security cameras
+        serving = True
+        while serving:
+            conn, addr = TLS_server_socket.accept()
+            Thread(target=start_instance, args=(TLS_server_socket, addr)).start()
         
 if __name__ == '__main__':
     main()
