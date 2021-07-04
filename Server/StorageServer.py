@@ -13,10 +13,10 @@ import datetime
 RESOLUTION = (1280, 720)
 # RESOLUTION = (1920, 1080)
 
-FPS = 15
+FPS = 20
 
 PORT = 8000
-LEGAL_PORTS = [8005, 8006, 8007, 8008]
+LEGAL_PORTS = [8000, 8001,8002]
 FORMAT = 'utf-8'
 FOURCC = VideoWriter_fourcc(*'mp4v')
 SUCCESS_MSG = bytes(f'{"SUCCESS":<10}', 'utf-8')
@@ -184,7 +184,12 @@ def main():
     # Set up socket server
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-    server_socket.bind(("0.0.0.0", PORT))
+    for p in LEGAL_PORTS:
+        try:
+            server_socket.bind(("0.0.0.0", p))
+        except OSError:
+            continue
+
     server_socket.listen(0)
 
     camera_instances = []
