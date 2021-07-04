@@ -13,7 +13,7 @@ import datetime
 
 RESOLUTION = (1280, 720)
 # RESOLUTION = (1920, 1080)
-FPS = 20
+FPS = 15
 
 PORT = 8000
 
