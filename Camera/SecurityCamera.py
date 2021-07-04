@@ -6,7 +6,7 @@ import shutil
 from time import sleep
 import socket
 import sys
-import threading
+from threading import Thread
 import ssl
 import datetime
 
@@ -25,141 +25,90 @@ SUCCESS_MSG = bytes(f'{"SUCCESS":<10}', 'utf-8')
 FAILURE_MSG = bytes(f'{"FAILURE":<10}', 'utf-8')
 SIZE_MSG = bytes(f'SIZE', 'utf-8')
 
-av_read = []
-av_send_size = []
-av_send_num = []
-av_send_img = []
+class Recorder:
+    def __init__(self):
+        self.TLS_client_socket = None
+        self.frame_num = 0
+        self.initiate_connection()
+        self.byte_stream = io.BytesIO()
+        self.output = RecorderHelper(self)
 
-def writer():
-    class SplitFrames(object):
-        def __init__(self):
-            self.frame_num = 0
-            self.output = None
-
-        def write(self, buf):
-            if buf.startswith(b'\xff\xd8'):
-                # Start of new frame; close the old one (if any) and
-                # open a new output
-                if self.output:
-                    self.output.close()
-                self.frame_num += 1
-                self.output = io.open('tmp/image%02d.jpg' % self.frame_num, 'wb')
-            self.output.write(buf)
-
-    with picamera.PiCamera(resolution=RESOLUTION, framerate=FPS) as camera:
-        camera.start_preview()
-        # Give the camera some warm-up time
-        time.sleep(2)
-        output = SplitFrames()
-        camera.annotate_background = picamera.Color('black')
-        camera.annotate_text = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        camera.start_recording(output, format='mjpeg')
-        start = datetime.datetime.now()
-        while (datetime.datetime.now() - start).seconds < 60**2*24:
-            camera.annotate_text = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            camera.wait_recording(0.2)
-        camera.stop_recording()
-
-
-def reader(server_address,_):
-    CERT_FILE = path.join(path.dirname(__file__), 'keycert.pem')
-    context = ssl.SSLContext(ssl.PROTOCOL_TLS)
-    context.load_cert_chain(CERT_FILE)
-    context.options |= (
-        ssl.OP_NO_TLSv1 | ssl.OP_NO_TLSv1_1 | ssl.OP_NO_TLSv1_2
-    )
-    # Connect to server
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    TLS_client_socket = context.wrap_socket(client_socket)
-    while True:
-        try:
-            TLS_client_socket.connect((server_address, PORT))
-        except ConnectionRefusedError:
-            sys.stdout.flush()
-            sys.stdout.write('\t[Reader]Trying to connect to server...\r')
-            client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            TLS_client_socket = context.wrap_socket(client_socket)
-        else:
-            print('\t[Reader]Connected To Server                 ')
-            break
-    try:
+    def initiate_connection(self):
+        CERT_FILE = path.join(path.dirname(__file__), 'keycert.pem')
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS)
+        context.load_cert_chain(CERT_FILE)
+        context.options |= (
+            ssl.OP_NO_TLSv1 | ssl.OP_NO_TLSv1_1 | ssl.OP_NO_TLSv1_2
+        )
+        # Connect to server
+        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.TLS_client_socket = context.wrap_socket(client_socket)
         while True:
-            # Wait for frames
-            while len(listdir('tmp')) == 0:
-                pass
-            
-            frame_paths = sorted(listdir('tmp'))
-            for frame in frame_paths:
-                send_picture(f'tmp/{frame}', TLS_client_socket, frame.split('image')[-1].split('.')[0])
-                remove(f'tmp/{frame}')
-    except KeyboardInterrupt:
-        print()
-    finally:
-        sum_read = 0
-        sum_size = 0
-        sum_frame = 0
-        for i in av_read:
-            sum_read += i
-        for i in av_send_size:
-            sum_size += i
-        for i in av_send_img:
-            sum_frame += i
-        print('======STATS=======')
-        print(f'Average read time: {sum_read/len(av_read)}')
-        print(f'Average size time: {sum_size/len(av_send_size)}')
-        print(f'Average frame time: {sum_frame/len(av_send_img)}')
+            try:
+                self.TLS_client_socket.connect((SERVER_ADDRESS, PORT))
+            except ConnectionRefusedError:
+                sys.stdout.flush()
+                sys.stdout.write('\t[Reader]Trying to connect to server...\r')
+                client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.TLS_client_socket = context.wrap_socket(client_socket)
+            else:
+                print('\t[Reader]Connected To Server                 ')
+                break
 
-        average_run = (sum_read/len(av_read) + sum_size/len(av_send_size) + sum_frame/len(av_send_img)) 
-        possible_framerate = 1 / average_run
-        print(f'\nAverage Send Time: {average_run}')
-        print(f'Possible Framerate: {possible_framerate}')
-
-            
-def send_picture(frame_path, client_socket, frame_num):
-    start_time = time.time()
-
-    bytes_io = open(frame_path, 'rb')
-
-    img_bytes = bytes_io.read()
-    bytes_io.close()
-
-    av_read.append(time.time() - start_time)
-    start_time = time.time()
-
-    # Create Session Header
-    frame_size = len(img_bytes)
-    session_header = bytes(str(f'SIZE{frame_size:<{PADDING_SIZE-4}}' + f'NUM{frame_num:<{PADDING_SIZE-3}}'), 'utf-8')
-    
-    # Send Session Header
-    attempt = 0
-    while True:
-        client_socket.send(session_header)
-        status = client_socket.recv(10)
-        if status == SUCCESS_MSG:
-            av_send_size.append(time.time() - start_time)
-            start_time = time.time()
-            break
-        elif attempt > 3:
-            print('Dropping frame')
-            return
-        elif status == FAILURE_MSG:
-            attempt += 1
-            continue
-
-    # Send Frame
-    while True:
-        client_socket.send(img_bytes)
+    def start_recording(self):
+        with picamera.PiCamera(resolution=RESOLUTION, framerate=FPS) as camera:
+            camera.start_preview()
+            # Give the camera some warm-up time
+            time.sleep(2)
+            camera.annotate_background = picamera.Color('black')
+            camera.annotate_text = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            camera.start_recording(self.output, format='mjpeg')
+            start = datetime.datetime.now()
+            while (datetime.datetime.now() - start).seconds < 60**2*24:
+                camera.annotate_text = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                camera.wait_recording(0.2)
+            camera.stop_recording()
         
-        status = client_socket.recv(10)
+    def send_picture(self, input):
+        img_bytes = input
+
+        # Create Session Header
+        frame_size = len(img_bytes)
+        session_header = bytes(str(f'SIZE{frame_size:<{PADDING_SIZE-4}}' + f'NUM{self.output.frame_num:<{PADDING_SIZE-3}}'), 'utf-8')
         
-        if status == SUCCESS_MSG:
-            break
-        elif status == FAILURE_MSG:
-            print('\tResending frame')
-            continue
-    
-    av_send_img.append(time.time() - start_time)
-    
+        # Send Session Header
+        attempt = 0
+        while True:
+            self.TLS_client_socket.send(session_header)
+            status = self.TLS_client_socket.recv(10)
+            if status == SUCCESS_MSG:
+                break
+            elif attempt > 3:
+                print('Dropping frame')
+                return
+            elif status == FAILURE_MSG:
+                attempt += 1
+                continue
+        # Send Frame
+        while True:
+            self.TLS_client_socket.send(img_bytes)
+            status = self.TLS_client_socket.recv(10)
+            if status == SUCCESS_MSG:
+                break
+            elif status == FAILURE_MSG:
+                print('\tResending frame')
+                continue
+
+
+class RecorderHelper:
+    def __init__(self, recorder):
+        self.frame_num = 0
+        self.output = None
+        self.recorder = recorder
+
+    def write(self, buf):
+        self.recorder.send_picture(buf)
+
 
 # MAIN
 if not ssl.HAS_TLSv1_3:
@@ -175,7 +124,5 @@ if 'tmp' in listdir():
 else:
     mkdir('tmp')
 
-
-threading.Thread(target=writer).start()
-reader(SERVER_ADDRESS, None)
+Recorder().start_recording()
 
