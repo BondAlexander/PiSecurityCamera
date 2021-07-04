@@ -7,17 +7,14 @@ import os
 from threading import Thread
 import ssl
 import datetime
+import yaml
 
 
-# RESOLUTION = (426, 240)
-RESOLUTION = (1280, 720)
-# RESOLUTION = (1920, 1080)
+c_file = open('../config.yml', 'r')
+CONFIG = yaml.load(c_file, Loader=yaml.SafeLoader)
+c_file.close()
 
-FPS = 20
-
-PORT = 8000
-LEGAL_PORTS = [8000, 8001,8002]
-FORMAT = 'utf-8'
+RESOLUTION = CONFIG['RESOLUTIONS']['720p']
 FOURCC = VideoWriter_fourcc(*'mp4v')
 SUCCESS_MSG = bytes(f'{"SUCCESS":<10}', 'utf-8')
 FAILURE_MSG = bytes(f'{"FAILURE":<10}', 'utf-8')
@@ -147,10 +144,10 @@ class _Clip:
     def __init__(self, addr):
         self.all_frames = []
         self.tmp_clip_file_path = f'.tmp/{addr[0]}/clip.mp4'
-        self.clip_video = VideoWriter(self.tmp_clip_file_path, FOURCC, FPS, RESOLUTION)
+        self.clip_video = VideoWriter(self.tmp_clip_file_path, FOURCC, CONFIG['FRAMERATE'], RESOLUTION)
 
     def is_finished(self):
-        if len(self.all_frames) / FPS == 7:
+        if len(self.all_frames) / CONFIG['FRAMERATE'] == 7:
             return True
 
     def add_frame(self, new_frame):
@@ -164,7 +161,7 @@ class _Clip:
 
     def reset(self):
         self.all_frames = []
-        self.clip_video = VideoWriter(self.tmp_clip_file_path, FOURCC, FPS, RESOLUTION)
+        self.clip_video = VideoWriter(self.tmp_clip_file_path, FOURCC, CONFIG['FRAMERATE'], RESOLUTION)
     
 def _sort_frames(frame):
     return int(frame['frame_num'])
@@ -184,7 +181,7 @@ def main():
     # Set up socket server
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-    for p in LEGAL_PORTS:
+    for p in CONFIG['LEGAL_PORTS']:
         try:
             server_socket.bind(("0.0.0.0", p))
         except OSError:
