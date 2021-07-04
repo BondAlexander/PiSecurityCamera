@@ -1,7 +1,8 @@
+SERVER_ADDR: 10.0.0.198
 RESOLUTIONS:
-  240p: (426, 240)
-  720p: (1280, 720)
-  1080p: (1920, 1080)
+  240p: !!python/tuple [426, 240]
+  720p: !!python/tuple [1280, 720]
+  1080p: !!python/tuple [1920, 1080]
 FRAMERATE: 20
 BYTE_FORMAT: utf-8
 LEGAL_PORTS: [8000, 8001, 8002]

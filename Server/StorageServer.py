@@ -14,7 +14,7 @@ c_file = open('../config.yml', 'r')
 CONFIG = yaml.load(c_file)
 c_file.close()
 
-RESOLUTION = CONFIG.RESOLUTIONS['720p']
+RESOLUTION = CONFIG['RESOLUTIONS']['720p']
 FOURCC = VideoWriter_fourcc(*'mp4v')
 SUCCESS_MSG = bytes(f'{"SUCCESS":<10}', 'utf-8')
 FAILURE_MSG = bytes(f'{"FAILURE":<10}', 'utf-8')
@@ -144,10 +144,10 @@ class _Clip:
     def __init__(self, addr):
         self.all_frames = []
         self.tmp_clip_file_path = f'.tmp/{addr[0]}/clip.mp4'
-        self.clip_video = VideoWriter(self.tmp_clip_file_path, FOURCC, CONFIG.FPS, RESOLUTION)
+        self.clip_video = VideoWriter(self.tmp_clip_file_path, FOURCC, CONFIG['FRAMERATE'], RESOLUTION)
 
     def is_finished(self):
-        if len(self.all_frames) / CONFIG.FPS == 7:
+        if len(self.all_frames) / CONFIG['FRAMERATE'] == 7:
             return True
 
     def add_frame(self, new_frame):
@@ -161,7 +161,7 @@ class _Clip:
 
     def reset(self):
         self.all_frames = []
-        self.clip_video = VideoWriter(self.tmp_clip_file_path, FOURCC, CONFIG.FPS, RESOLUTION)
+        self.clip_video = VideoWriter(self.tmp_clip_file_path, FOURCC, CONFIG['FRAMERATE'], RESOLUTION)
     
 def _sort_frames(frame):
     return int(frame['frame_num'])
@@ -181,7 +181,7 @@ def main():
     # Set up socket server
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-    for p in CONFIG.LEGAL_PORTS:
+    for p in CONFIG['LEGAL_PORTS']:
         try:
             server_socket.bind(("0.0.0.0", p))
         except OSError:
