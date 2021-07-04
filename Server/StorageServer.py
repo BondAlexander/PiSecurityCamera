@@ -15,7 +15,7 @@ RESOLUTION = (1280, 720)
 
 FPS = 15
 
-PORT = 8001
+PORT = 8000
 LEGAL_PORTS = [8005, 8006, 8007, 8008]
 FORMAT = 'utf-8'
 FOURCC = VideoWriter_fourcc(*'mp4v')
@@ -62,7 +62,7 @@ class CameraInstance:
             else:
                 clip_to_add = f'.tmp/{self.addr[0]}/clip_to_add_{version}.mp4'
                 break
-        shutil.copy(self.tmp_clip_file_path, clip_to_add)
+        shutil.copy(self.clip.tmp_clip_file_path, clip_to_add)
         Thread(target=self._merge_clip_helper, args=(self.addr[0], clip_to_add)).start()
    
     def process_header(self):
@@ -112,9 +112,9 @@ class _Frame:
     def __init__(self):
         self.frame_bytes = b''
         self.new = True
-        self.num
-        self.size
-        self.image_object
+        self.num = None
+        self.size = None
+        self.image_object = None
 
     def is_valid(self):
         if len(self.frame_bytes) > self.size:
@@ -146,18 +146,18 @@ class _Frame:
 class _Clip:
     def __init__(self, addr):
         self.all_frames = []
-        self.clip_video = VideoWriter(self.tmp_clip_file_path, FOURCC, FPS, RESOLUTION)
         self.tmp_clip_file_path = f'.tmp/{addr[0]}/clip.mp4'
+        self.clip_video = VideoWriter(self.tmp_clip_file_path, FOURCC, FPS, RESOLUTION)
 
     def is_finished(self):
         if len(self.all_frames) / FPS == 7:
             return True
 
     def add_frame(self, new_frame):
-        self.all_frames.append({'frame_num': new_frame.frame_num, 'frame':new_frame.image_object})
+        self.all_frames.append({'frame_num': new_frame.num, 'frame':new_frame.image_object})
     
     def publish(self):
-        self.all_frames.sort(key=self._sort_frames)
+        self.all_frames.sort(key=_sort_frames)
         for f in self.all_frames:
             self.clip_video.write(f['frame'])
         self.clip_video.release()
@@ -166,12 +166,9 @@ class _Clip:
         self.all_frames = []
         self.clip_video = VideoWriter(self.tmp_clip_file_path, FOURCC, FPS, RESOLUTION)
     
-    def _sort_frames(frame):
-        return int(frame['frame_num'])
+def _sort_frames(frame):
+    return int(frame['frame_num'])
 
-
-
-# Standalone Functions
 
 def main():
     # TLS code borrowed from https://www.agnosticdev.com/blog-entry/python-network-security-networking/ssl-and-tls-updates-python-37
