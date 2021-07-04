@@ -13,9 +13,9 @@ import datetime
 
 RESOLUTION = (1280, 720)
 # RESOLUTION = (1920, 1080)
-FPS = 15
+FPS = 20
 
-PORT = 8000
+LEGAL_PORTS = [8000, 8001, 8002]
 
 FORMAT = 'utf-8'
 PADDING_SIZE = 15
@@ -44,14 +44,18 @@ class Recorder:
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.TLS_client_socket = context.wrap_socket(client_socket)
         while True:
-            try:
-                self.TLS_client_socket.connect((SERVER_ADDRESS, PORT))
-            except ConnectionRefusedError:
-                sys.stdout.flush()
-                sys.stdout.write('\t[Reader]Trying to connect to server...\r')
-                client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                self.TLS_client_socket = context.wrap_socket(client_socket)
-            else:
+            for p in LEGAL_PORTS:
+                    
+                try:
+                    self.TLS_client_socket.connect((SERVER_ADDRESS, p))
+                except ConnectionRefusedError:
+                    sys.stdout.flush()
+                    sys.stdout.write('\t[Reader]Trying to connect to server...\r')
+                    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    self.TLS_client_socket = context.wrap_socket(client_socket)
+                else:
+                    break
+            if self.TLS_client_socket._connected:
                 print('\t[Reader]Connected To Server                 ')
                 break
 
@@ -60,18 +64,23 @@ class Recorder:
             camera.start_preview()
             # Give the camera some warm-up time
             time.sleep(2)
+            recording_start = time.time()
             camera.annotate_background = picamera.Color('black')
             camera.annotate_text = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             camera.start_recording(self.output, format='mjpeg')
             start = datetime.datetime.now()
-            while (datetime.datetime.now() - start).seconds < 60**2*24:
+            while (datetime.datetime.now() - start).seconds < 60:
                 camera.annotate_text = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 camera.wait_recording(0.2)
             camera.stop_recording()
+            finish = time.time()
+            print('Captured %d frames at %.2ffps' % (self.frame_num, self.frame_num / (finish - recording_start)))
+
         
-    def send_picture(self, img_bytes):
+    def send_picture(self, img_bytes, frame_num):
         # Create Session Header
         frame_size = len(img_bytes)
+        self.frame_num = frame_num
         session_header = bytes(str(f'SIZE{frame_size:<{PADDING_SIZE-4}}' + f'NUM{self.output.frame_num:<{PADDING_SIZE-3}}'), 'utf-8')
         
         # Send Session Header
@@ -105,7 +114,8 @@ class RecorderHelper:
         self.recorder = recorder
 
     def write(self, buf):
-        self.recorder.send_picture(buf)
+        self.recorder.send_picture(buf, self.frame_num)
+        self.frame_num += 1
 
 
 # MAIN
