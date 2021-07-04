@@ -9,13 +9,14 @@ import os
 from threading import Thread
 import ffmpeg
 import ssl
+import datetime
 
 
 # RESOLUTION = (426, 240)
 RESOLUTION = (1280, 720)
 # RESOLUTION = (1920, 1080)
 
-FPS = 20
+FPS = 15
 
 PORT = 8000
 LEGAL_PORTS = [8005, 8006, 8007, 8008]
@@ -26,7 +27,7 @@ FAILURE_MSG = bytes(f'{"FAILURE":<10}', 'utf-8')
 
 
 def merge_clip(ip_addr, tmp_clip_file_path):
-    date_formatted = "6.24.2021"
+    date_formatted = datetime.datetime.now().strftime('%Y-%m-%d')
     version = 0
     output_file_path = f'Footage/{ip_addr}/{date_formatted}_v{version}.mkv'
     if os.path.exists(output_file_path):
