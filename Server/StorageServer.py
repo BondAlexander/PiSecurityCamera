@@ -1,13 +1,10 @@
-import io
 from posix import listdir
 import socket
 from cv2 import VideoWriter, VideoWriter_fourcc, cvtColor, COLOR_RGB2BGR, IMREAD_COLOR, imdecode
 import numpy as np
 import shutil
-import time
 import os
 from threading import Thread
-import ffmpeg
 import ssl
 import datetime
 
@@ -28,12 +25,23 @@ FAILURE_MSG = bytes(f'{"FAILURE":<10}', 'utf-8')
 class CameraInstance:
     def __init__(self, addr, TLS_server_socket):
         self.addr = addr
-        print(f'\t{self.addr[0]} Connected')
-        self.verify_file_structure()
-        self.tmp_clip_file_path = f'.tmp/{self.addr[0]}/clip.mp4'
         self.TLS_server_socket = TLS_server_socket
+        self.frame = _Frame()
+        self.clip = _Clip(self.addr)
+        print(f'\t{self.addr[0]} Connected')
+        self._verify_file_structure()
 
-    def merge_clip(self, ip_addr, tmp_clip_file_path):
+    def _verify_file_structure(self):
+        if not os.path.exists(f'.tmp/{self.addr[0]}'):
+            if not os.path.exists('.tmp'):
+                os.mkdir('.tmp')
+            os.mkdir(f'.tmp/{self.addr[0]}')
+        if not os.path.exists(f'Footage/{self.addr[0]}'):
+            if not os.path.exists('Footage'):
+                os.mkdir('Footage')
+            os.mkdir(f'Footage/{self.addr[0]}')
+
+    def _merge_clip_helper(self, ip_addr, tmp_clip_file_path):
         version = 0
         self.date_formatted = datetime.datetime.now().strftime('%Y-%m-%d')
         output_file_path = f'Footage/{ip_addr}/{self.date_formatted}_v{version}.mkv'
@@ -45,84 +53,125 @@ class CameraInstance:
             os.remove(tmp_clip_file_path)
         else:
             shutil.copy(tmp_clip_file_path, output_file_path)
-
-    def verify_file_structure(self):
-        # Prepare folder to record security footage
-        if not os.path.exists(f'.tmp/{self.addr[0]}'):
-            if not os.path.exists('.tmp'):
-                os.mkdir('.tmp')
-            os.mkdir(f'.tmp/{self.addr[0]}')
-        if not os.path.exists(f'Footage/{self.addr[0]}'):
-            if not os.path.exists('Footage'):
-                os.mkdir('Footage')
-            os.mkdir(f'Footage/{self.addr[0]}')
+    
+    def merge_clip(self):
+        version = 0
+        while True:
+            if os.path.exists(f'.tmp/{self.addr[0]}/clip_to_add_{version}.mp4'):
+                version += 1
+            else:
+                clip_to_add = f'.tmp/{self.addr[0]}/clip_to_add_{version}.mp4'
+                break
+        shutil.copy(self.tmp_clip_file_path, clip_to_add)
+        Thread(target=self._merge_clip_helper, args=(self.addr[0], clip_to_add)).start()
+   
+    def process_header(self):
+        message = self.TLS_server_socket.recv(30)
+        try:
+            self.frame.size = int(message[4:15])
+            if self.frame.size == 0:
+                self.TLS_server_socket.send(FAILURE_MSG)
+                return
+        except ValueError as e:
+            self.TLS_server_socket.send(FAILURE_MSG)
+            return
+        try:
+            self.frame.num = int(message[18:])
+        except ValueError as e:
+            self.TLS_server_socket.send(FAILURE_MSG)
+        else:
+            self.frame.new = False
+            self.TLS_server_socket.send(SUCCESS_MSG)
 
     def run(self):
-        video = VideoWriter(self.tmp_clip_file_path, FOURCC, FPS, RESOLUTION)
-        frame = b''
-        all_frames = []
-        new_frame = True
-        recv_time_array = []
         # Poll for frames
         while True:
-            if new_frame:
-                recv_time = time.time()
-                message = self.TLS_server_socket.recv(30)
-                try:
-                    frame_size = int(message[4:15])
-                    if frame_size == 0:
-                        self.TLS_server_socket.send(FAILURE_MSG)
-                        continue
-                except ValueError as e:
-                    self.TLS_server_socket.send(FAILURE_MSG)
-                    continue
-                try:
-                    frame_num = int(message[18:])
-                except ValueError as e:
-                    self.TLS_server_socket.send(FAILURE_MSG)
-                else:
-                    new_frame = False
-                    self.TLS_server_socket.send(SUCCESS_MSG)
+            if self.frame.new:
+                self.process_header()
                 continue
             else:
-                message = self.TLS_server_socket.recv(frame_size)
-                frame += message
-            if len(frame) > frame_size :
-                self.TLS_server_socket.send(FAILURE_MSG)
-                frame = b''
-            elif len(frame) == frame_size:
-                # TODO REMOVE THIS TRY BLOCK AFTER HASHING
-                try:
-                    image = imdecode(np.asarray(bytearray(frame), dtype="uint8"), IMREAD_COLOR)
-                except Exception as e:
-                    self.TLS_server_socket.send(FAILURE_MSG)
-                    continue
-                else: 
-                    all_frames.append({'frame_num': frame_num, 'frame':image})
-                    if len(all_frames) / FPS == 7:
-                        def sort_frames(i):
-                            return int(i['frame_num'])
-                        all_frames.sort(key=sort_frames)
-                        for frame in all_frames:
-                            video.write(frame['frame'])
-                        video.release()
-                        version = 0
-                        while True:
-                            if os.path.exists(f'.tmp/{self.addr[0]}/clip_to_add_{version}.mp4'):
-                                version += 1
-                            else:
-                                clip_to_add = f'.tmp/{self.addr[0]}/clip_to_add_{version}.mp4'
-                                break
-                        shutil.copy(self.tmp_clip_file_path, clip_to_add)
-                        Thread(target=self.merge_clip, args=(self.addr[0], clip_to_add)).start()
-                        all_frames = []
-                        video = VideoWriter(self.tmp_clip_file_path, FOURCC, FPS, RESOLUTION)
+                message = self.TLS_server_socket.recv(self.frame.size)
+                self.frame.append(message)
+            if self.frame.is_complete():
+                if self.frame.is_valid():
+                    self.frame.convert_to_cv2_image()
+                    self.clip.add_frame(self.frame)
+                    if self.clip.is_finished():
+                        self.clip.publish()
+                        self.merge_clip()
+                        self.clip.reset()
                     self.TLS_server_socket.send(SUCCESS_MSG)
+                    self.frame.reset()
+                else:
+                    self.TLS_server_socket.send(FAILURE_MSG)
+            else:
+                continue
 
-                    frame = b''
-                    new_frame = True
-                    recv_time_array.append(time.time() - recv_time)
-            
+
+class _Frame:
+    def __init__(self):
+        self.frame_bytes = b''
+        self.new = True
+        self.num
+        self.size
+        self.image_object
+
+    def is_valid(self):
+        if len(self.frame_bytes) > self.size:
+            self.retry()
+            return False
+        else:
+            return True
+
+    def is_complete(self):
+        if len(self.frame_bytes) == self.size:
+            return True
+
+    def append(self, new_bytes):
+        self.frame_bytes += new_bytes
+
+    def convert_to_cv2_image(self):
+        self.image_object = imdecode(np.asarray(bytearray(self.frame_bytes), dtype="uint8"), IMREAD_COLOR)
+
+    def retry(self):
+        self.frame_bytes = b''
+
+    def reset(self):
+        self.frame_bytes = b''
+        self.new = True
+        self.num
+        self.size
+
+
+class _Clip:
+    def __init__(self, addr):
+        self.all_frames = []
+        self.clip_video = VideoWriter(self.tmp_clip_file_path, FOURCC, FPS, RESOLUTION)
+        self.tmp_clip_file_path = f'.tmp/{addr[0]}/clip.mp4'
+
+    def is_finished(self):
+        if len(self.all_frames) / FPS == 7:
+            return True
+
+    def add_frame(self, new_frame):
+        self.all_frames.append({'frame_num': new_frame.frame_num, 'frame':new_frame.image_object})
+    
+    def publish(self):
+        self.all_frames.sort(key=self._sort_frames)
+        for f in self.all_frames:
+            self.clip_video.write(f['frame'])
+        self.clip_video.release()
+
+    def reset(self):
+        self.all_frames = []
+        self.clip_video = VideoWriter(self.tmp_clip_file_path, FOURCC, FPS, RESOLUTION)
+    
+    def _sort_frames(frame):
+        return int(frame['frame_num'])
+
+
+
+# Standalone Functions
 
 def main():
     # TLS code borrowed from https://www.agnosticdev.com/blog-entry/python-network-security-networking/ssl-and-tls-updates-python-37
