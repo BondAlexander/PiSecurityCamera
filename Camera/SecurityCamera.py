@@ -13,7 +13,7 @@ import yaml
 
 
 c_file = open('../config.yml', 'r')
-CONFIG = yaml.load(c_file)
+CONFIG = yaml.load(c_file, Loader=yaml.SafeLoader)
 c_file.close()
 
 RESOLUTION = CONFIG['RESOLUTIONS']['720p']
