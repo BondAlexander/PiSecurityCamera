@@ -9,21 +9,16 @@ import sys
 from threading import Thread
 import ssl
 import datetime
+import yaml
 
 
-RESOLUTION = (1280, 720)
-# RESOLUTION = (1920, 1080)
-FPS = 20
+c_file = open('../config.yml', 'r')
+CONFIG = yaml.load(c_file)
+c_file.close()
 
-LEGAL_PORTS = [8000, 8001, 8002]
-
-FORMAT = 'utf-8'
-PADDING_SIZE = 15
-
-DISCONECT_MESSAGE = 'EXIT'
+RESOLUTION = CONFIG['RESOLUTIONS']['720p']
 SUCCESS_MSG = bytes(f'{"SUCCESS":<10}', 'utf-8')
 FAILURE_MSG = bytes(f'{"FAILURE":<10}', 'utf-8')
-SIZE_MSG = bytes(f'SIZE', 'utf-8')
 
 class Recorder:
     def __init__(self):
@@ -44,10 +39,10 @@ class Recorder:
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.TLS_client_socket = context.wrap_socket(client_socket)
         while True:
-            for p in LEGAL_PORTS:
+            for p in CONFIG['LEGAL_PORTS']:
                     
                 try:
-                    self.TLS_client_socket.connect((SERVER_ADDRESS, p))
+                    self.TLS_client_socket.connect((CONFIG['SERVER_ADDR'], p))
                 except ConnectionRefusedError:
                     sys.stdout.flush()
                     sys.stdout.write('\t[Reader]Trying to connect to server...\r')
@@ -60,7 +55,7 @@ class Recorder:
                 break
 
     def start_recording(self):
-        with picamera.PiCamera(resolution=RESOLUTION, framerate=FPS) as camera:
+        with picamera.PiCamera(resolution=RESOLUTION, framerate=CONFIG['FRAMERATE']) as camera:
             camera.start_preview()
             # Give the camera some warm-up time
             time.sleep(2)
@@ -81,7 +76,7 @@ class Recorder:
         # Create Session Header
         frame_size = len(img_bytes)
         self.frame_num = frame_num
-        session_header = bytes(str(f'SIZE{frame_size:<{PADDING_SIZE-4}}' + f'NUM{self.output.frame_num:<{PADDING_SIZE-3}}'), 'utf-8')
+        session_header = bytes(str(f'SIZE{frame_size:<{11}}' + f'NUM{self.output.frame_num:<{12}}'), 'utf-8')
         
         # Send Session Header
         attempt = 0
