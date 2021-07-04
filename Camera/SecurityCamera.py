@@ -69,9 +69,7 @@ class Recorder:
                 camera.wait_recording(0.2)
             camera.stop_recording()
         
-    def send_picture(self, input):
-        img_bytes = input
-
+    def send_picture(self, img_bytes):
         # Create Session Header
         frame_size = len(img_bytes)
         session_header = bytes(str(f'SIZE{frame_size:<{PADDING_SIZE-4}}' + f'NUM{self.output.frame_num:<{PADDING_SIZE-3}}'), 'utf-8')
